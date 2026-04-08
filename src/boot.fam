@@ -11,4 +11,20 @@ macro exit() {
 	0
 };
 
+macro putstr(ptr) {
+	asm {
+		(a0=ptr)
+		lui t0, 0x10000
+		1:
+		lbu t1, 0(a0)
+		beq t1, zero, 2f
+		sb t1, 0(t0)
+		addi a0, a0, 1
+		j 1b
+		2:
+	};
+	0
+};
+
+putstr("booting!\n");
 exit();
