@@ -7,9 +7,9 @@
 // Usage:
 //   state = stackalloc(48);  // 12 words
 //   // zero state, absorb data, etc.
-//   gimli!(state);      // apply permutation
+//   gimli(state);            // apply permutation
 
-macro gimli(state) {
+gimli = |state| {
 	__st := state;
 	__round := 24;
 	loop {
@@ -70,7 +70,7 @@ macro gimli(state) {
 
 // Gimli-Hash: absorb + squeeze for simple hashing
 // Absorbs input in 16-byte (4-word) rate blocks, outputs 32 bytes
-macro gimli_hash(input, inlen, output) {
+gimli_hash = |input, inlen, output| {
 	__hs := stackalloc(48);
 	// Zero state
 	for __i in 0..12 { *(__hs + __i * 4) = 0 };
@@ -84,7 +84,7 @@ macro gimli_hash(input, inlen, output) {
 		for __i in 0..4 {
 			*(__hs + __i * 4) = *(__hs + __i * 4) ^ *(input + __pos + __i * 4);
 		};
-		gimli!(__hs);
+		gimli(__hs);
 		__pos = __pos + 16;
 		__remaining = __remaining - 16;
 	};
@@ -102,13 +102,13 @@ macro gimli_hash(input, inlen, output) {
 	for __i in 0..4 {
 		*(__hs + __i * 4) = *(__hs + __i * 4) ^ *(__buf + __i * 4);
 	};
-	gimli!(__hs);
+	gimli(__hs);
 
 	// Squeeze: output 32 bytes (2 permute calls, 16 bytes each)
 	for __i in 0..4 {
 		*(output + __i * 4) = *(__hs + __i * 4);
 	};
-	gimli!(__hs);
+	gimli(__hs);
 	for __i in 0..4 {
 		*(output + 16 + __i * 4) = *(__hs + __i * 4);
 	};

@@ -3,7 +3,6 @@
 
 putstr!("booting...\n");
 
-/*
 state = stackalloc(48);
 
 // Initialize: state[i] = i * 0x9E3779B9
@@ -14,14 +13,13 @@ for i in 0..12 {
 	*(state + off) = val;
 };
 
-gimli!(state);
+gimli(state);
 
 // Print all 12 words
 for i in 0..12 {
 	puthex!(*(state + i * 4));
 	i & 3 == 3 ? putchar!('\n') : putchar!(' ');
 };
-*/
 
 // TODO: init VirtIO block device
 // TODO: read kernel from disk into memory at 0x80100000
