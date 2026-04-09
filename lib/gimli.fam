@@ -1,0 +1,116 @@
+// Gimli-24 permutation — 384-bit state (12 x 32-bit words)
+// Reference: https://gimli.cr.yp.to/
+//
+// State layout: 12 words at a memory address
+//   state[0..3] = row 0, state[4..7] = row 1, state[8..11] = row 2
+//
+// Usage:
+//   state = stackalloc(48);  // 12 words
+//   // zero state, absorb data, etc.
+//   gimli!(state);      // apply permutation
+
+macro gimli(state) {
+	__st := state;
+	__round := 24;
+	loop {
+		// Column step: for each of 4 columns
+		for __col in 0..4 {
+			__off := __col * 4;
+			__x := *(__st + __off);
+			__y := *(__st + 16 + __off);
+			__z := *(__st + 32 + __off);
+
+			// x = ROL(x, 24) = (x << 24) | (x >> 8)
+			__x = (__x << 24) | (__x >> 8);
+			// y = ROL(y, 9) = (y << 9) | (y >> 23)
+			__y = (__y << 9) | (__y >> 23);
+
+			// Gimli SP-box
+			__t := __x ^ (__z << 1) ^ ((__y & __z) << 2);
+			__u := __y ^ __x ^ ((__x | __z) << 1);
+			__v := __z ^ __y ^ ((__x & __y) << 3);
+
+			*(__st + 32 + __off) = __t;
+			*(__st + 16 + __off) = __u;
+			*(__st + __off) = __v;
+		};
+
+		// Every 4 rounds: swap + round constant
+		__round & 3 == 0 ? {
+			// Small swap: state[0] <-> state[1], state[2] <-> state[3]
+			__a := *(__st);
+			__b := *(__st + 4);
+			*(__st) = __b;
+			*(__st + 4) = __a;
+			__a = *(__st + 8);
+			__b = *(__st + 12);
+			*(__st + 8) = __b;
+			*(__st + 12) = __a;
+			// XOR round constant into state[0]
+			*(__st) = *(__st) ^ (0x9E377900 | __round);
+		};
+
+		__round & 3 == 2 ? {
+			// Big swap: state[0] <-> state[2], state[1] <-> state[3]
+			__a := *(__st);
+			__b := *(__st + 8);
+			*(__st) = __b;
+			*(__st + 8) = __a;
+			__a = *(__st + 4);
+			__b = *(__st + 12);
+			*(__st + 4) = __b;
+			*(__st + 12) = __a;
+		};
+
+		__round = __round - 1;
+		__round == 0 ? break;
+	};
+	0
+};
+
+// Gimli-Hash: absorb + squeeze for simple hashing
+// Absorbs input in 16-byte (4-word) rate blocks, outputs 32 bytes
+macro gimli_hash(input, inlen, output) {
+	__hs := stackalloc(48);
+	// Zero state
+	for __i in 0..12 { *(__hs + __i * 4) = 0 };
+
+	// Absorb
+	__pos := 0;
+	__remaining := inlen;
+	loop {
+		__remaining <u 16 ? break;
+		// XOR 16 bytes (4 words) into state
+		for __i in 0..4 {
+			*(__hs + __i * 4) = *(__hs + __i * 4) ^ *(input + __pos + __i * 4);
+		};
+		gimli!(__hs);
+		__pos = __pos + 16;
+		__remaining = __remaining - 16;
+	};
+
+	// Absorb remaining bytes (pad with 0x1F delimiter and 0x80 at end)
+	// For simplicity: XOR remaining full words, then handle last partial word
+	__buf := stackalloc(16);
+	for __i in 0..4 { *(__buf + __i * 4) = 0 };
+	for __i in 0..__remaining {
+		@(__buf + __i) = @(input + __pos + __i);
+	};
+	// Padding: set delimiter after data, set high bit of last rate byte
+	@(__buf + __remaining) = 0x1F;
+	@(__buf + 15) = @(__buf + 15) | 0x80;
+	for __i in 0..4 {
+		*(__hs + __i * 4) = *(__hs + __i * 4) ^ *(__buf + __i * 4);
+	};
+	gimli!(__hs);
+
+	// Squeeze: output 32 bytes (2 permute calls, 16 bytes each)
+	for __i in 0..4 {
+		*(output + __i * 4) = *(__hs + __i * 4);
+	};
+	gimli!(__hs);
+	for __i in 0..4 {
+		*(output + 16 + __i * 4) = *(__hs + __i * 4);
+	};
+	0
+};

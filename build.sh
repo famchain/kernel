@@ -4,8 +4,8 @@ set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
 FAMC="$DIR/famc/bin/famc"
 
-# Build the compiler if needed
-if [ ! -f "$FAMC" ]; then
+# Rebuild compiler if source is newer than binary
+if [ ! -f "$FAMC" ] || [ "$DIR/famc/src/famc.fam3" -nt "$FAMC" ]; then
 	echo "Building famc compiler..."
 	(cd "$DIR/famc" && bash build.sh)
 fi
@@ -33,7 +33,7 @@ check() {
 
 # Build bootloader
 echo "Building boot.bin..."
-compile "$DIR/lib/macros.fam" "$DIR/src/boot.fam" > "$DIR/bin/boot.bin"
+compile "$DIR/lib/macros.fam" "$DIR/lib/gimli.fam" "$DIR/src/boot.fam" > "$DIR/bin/boot.bin"
 check "$DIR/bin/boot.bin"
 
 echo "Success!"
